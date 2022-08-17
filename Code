@@ -1,0 +1,488 @@
+import matplotlib.pyplot as plt
+import scipy as sc
+from scipy.spatial import ConvexHull
+import sklearn as sk
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+import numpy as np
+import seaborn as sns
+import pandas as pd
+import requests
+import sys
+from functools import reduce
+from adjustText import adjust_text
+
+def k_means(df, feature_one, feature_two, *features):
+    feature_list = [feature_one, feature_two]
+    for f in features:
+        feature_list.append(f)
+    sse = {}
+    for k in range(1, 10):
+        kmeans = KMeans(n_clusters=k)
+        y = kmeans.fit_predict(df[feature_list])
+        df['Cluster'] = y
+        sse[k] = kmeans.inertia_
+    plt.figure()
+    plt.plot(list(sse.keys()), list(sse.values()))
+    plt.xlabel("Number of Clusters")
+    plt.ylabel("SSE")
+    plt.show()
+    plt.close()
+
+    optimal_clusters = int(input("Please enter optimal number of Clusters (the 'elbow' of the line before it plateaus at the bottom):"))
+    kmeans = KMeans(n_clusters=optimal_clusters)
+    y = kmeans.fit_predict(df[feature_list])
+    df['Cluster'] = y
+    reduced_data = PCA(n_components=2).fit_transform(df.iloc[:,5:14])
+    results = pd.DataFrame(reduced_data,columns=['pca1','pca2'])
+    viz_height = 7
+    viz_width = 10
+    bg_colour = 'gray'
+    face_colour = 'white'
+    viz_title = 'K-Means Clusters'
+    fig = plt.figure(facecolor=bg_colour)
+    ax = fig.add_subplot(1,1,1, facecolor=face_colour)
+    fig.set_size_inches(viz_width, viz_height)
+    fig.suptitle(viz_title,fontsize=16)
+    sns.scatterplot(x="pca1", y="pca2", hue=df['Cluster'], data=results,
+                s=200,
+                palette="flare",
+                edgecolor=None)
+    texts = []
+
+    for x,y,z in zip(results['pca1'],results['pca2'],df['Squad']):
+        texts.append(ax.text(x=x,
+            y=y,
+            s=z,
+            bbox=dict(facecolor='white',
+                      edgecolor=None,
+                      alpha=0.3, pad=2),
+            fontname='Tahoma',
+            fontsize=9,
+            ha='center',
+            va='center'))
+
+    adjust_text(texts, only_move={'points':'y', 'texts':'y'})
+
+    ax.set(xlabel=None)
+    ax.set(ylabel=None)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    plt.show()
+
+
+
+
+def inputs(df):
+    col_headers = list(df.columns.values)
+    att_feat = ['xG','shot_Sh/90','shot_Dist','shot_npxG/Sh','pass_Att','pass_Cmp%','pass_TotDist','pass_PrgDist','pass_Prog','pass_type_Ground','pass_type_Low','pass_type_High','pass_type_Head','chance_creation_PassLive','chance_creation_PassDead','chance_creation_Drib','chance_creation_Sh','chance_creation_Fld','chance_creation_Def','poss_Touches','poss_Def Pen','poss_Def 3rd','poss_Mid 3rd','poss_Att 3rd','poss_Att Pen','poss_Live','poss_Succ','poss_Att','poss_Succ%','poss_Carries','poss_TotDist','poss_PrgDist','poss_Prog','misc_Fld']
+    def_feat = ['xGA','gk_Att','gk_Cmp%','gk_Thr','gk_Launch%','gk_AvgLen','gk_Stp%','chance_creation_Def','def_Tkl','def_Tkl%','def_Def 3rd','def_Mid 3rd','def_Att 3rd','def_Tkl','def_Att','def_Past','def_Press','def_Succ','def_Blocks','def_Sh','def_ShSv','def_Pass','def_Int','def_Clr','def_Err','misc_Fls']
+    ov_feat = ['xG','shot_Sh/90','shot_Dist','shot_npxG/Sh','pass_Att','pass_Cmp%','pass_TotDist','pass_PrgDist','pass_Prog','pass_type_Ground','pass_type_Low','pass_type_High','pass_type_Head','chance_creation_PassLive','chance_creation_PassDead','chance_creation_Drib','chance_creation_Sh','chance_creation_Fld','poss_Touches','poss_Def Pen','poss_Def 3rd','poss_Mid 3rd','poss_Att 3rd','poss_Att Pen','poss_Live','poss_Succ','poss_Att','poss_Succ%','poss_Carries','poss_TotDist','poss_PrgDist','poss_Prog','misc_Fld','xGA','gk_Att','gk_Cmp%','gk_Thr','gk_Launch%','gk_AvgLen','gk_Stp%','chance_creation_Def','def_Tkl','def_Tkl%','def_Def 3rd','def_Mid 3rd','def_Att 3rd','def_Tkl','def_Att','def_Past','def_Press','def_Succ','def_Blocks','def_Sh','def_ShSv','def_Pass','def_Int','def_Clr','def_Err','misc_Fls']
+    features = []
+    ex = 0
+    def_sel = 'N'
+
+    while ex == 0:
+        print("---------------")
+        print("")
+        clustering = input("Please enter a Feature or Default Feature Setup for K-Means Clustering.\nType 'c' instead to see all columns or 'd' to see Default Feature Setups.\nOnce you have selected all of your features (minimum two) please enter 'fin':")
+
+        if clustering == 'c':
+            for i in range(len(col_headers)):
+                print(col_headers[i])
+            print("---------------\nFor help with abbreviations, please visit: " + url)
+            print("*********************************")
+            print("")
+
+        elif clustering == 'd':
+            print("Attack:")
+            for i in range(len(att_feat)):
+                print(att_feat[i])
+            print("---------------")
+            print("Defence:")
+            for i in range(len(def_feat)):
+                print(def_feat[i])
+            print("---------------")
+            print("Overall:")
+            for i in range(len(ov_feat)):
+                print(ov_feat[i])
+            print("---------------\nFor help with abbreviations, please visit: " + url)
+            print("*********************************")
+            print("")
+        elif clustering == 'Attack':
+            ex=1
+            def_sel='A'
+        elif clustering == 'Defence':
+            ex=1
+            def_sel='D'
+        elif clustering == 'Overall':
+            ex=1
+            def_sel='O'
+        elif clustering == 'fin':
+            if len(features) >= 2:
+                ex=1
+            else:
+                print("Error: too few Features selected")
+        else:
+            if clustering in col_headers:
+                features.append(clustering)
+            else:
+                print("Error: input not recognised")
+
+
+    if def_sel == 'A':
+        k_means(df, *att_feat)
+    elif def_sel == 'D':
+        k_means(df, *def_feat)
+    elif def_sel == 'O':
+        k_means(df, *ov_feat)
+    else:
+        k_means(df, *features)
+
+
+
+
+    
+print("*********************************")
+print("")
+print("Leagues which currently can be selected are:")
+print("English Premier League (ID: 9)")
+print("French Ligue 1 (ID: 13)")
+print("Italian Serie A (ID: 11)")
+print("Spanish La Liga (ID: 12)")
+print("German Bundesliga (ID: 20)")
+print("")
+print("*********************************")
+print("")
+print("")
+
+#Set URL
+
+base_url = 'https://www.fbref.com/en/comps/'
+
+comp_id = str(input("Please enter Competition ID:"))
+print("Preparing data...")
+url = base_url + comp_id
+
+#Make Request
+
+r = requests.get(url)
+text = r.text
+
+#Import and Select Table, prep DFs
+
+imported_tables = pd.read_html(url)
+league_df = imported_tables[0]
+league_df.drop(league_df.columns[[15,16,17,18,19]],axis=1,inplace=True)
+league_df.sort_values(by='Squad',ascending=True,inplace=True,ignore_index=True)
+gk_df = imported_tables[6]
+gk_df = gk_df.droplevel(level=0,axis=1)
+gk_df.columns = 'gk_' + gk_df.columns.values
+gk_df.rename(columns={'gk_Squad':'Squad'}, inplace=True)
+shot_df = imported_tables[8]
+shot_df = shot_df.droplevel(level=0,axis=1)
+shot_df.columns = 'shot_' + shot_df.columns.values
+shot_df.rename(columns={'shot_Squad':'Squad'}, inplace=True)
+pass_df = imported_tables[10]
+pass_df = pass_df.droplevel(level=0,axis=1)
+pass_df.columns = 'pass_' + pass_df.columns.values
+pass_df.rename(columns={'pass_Squad':'Squad'}, inplace=True)
+pass_type_df = imported_tables[12]
+pass_type_df = pass_type_df.droplevel(level=0,axis=1)
+pass_type_df.columns = 'pass_type_' + pass_type_df.columns.values
+pass_type_df.rename(columns={'pass_type_Squad':'Squad'}, inplace=True)
+chance_creation_df = imported_tables[14]
+chance_creation_df = chance_creation_df.droplevel(level=0,axis=1)
+chance_creation_df.columns = 'chance_creation_' + chance_creation_df.columns.values
+chance_creation_df.rename(columns={'chance_creation_Squad':'Squad'}, inplace=True)
+def_df = imported_tables[16]
+def_df = def_df.droplevel(level=0,axis=1)
+def_df.columns = 'def_' + def_df.columns.values
+def_df.rename(columns={'def_Squad':'Squad'}, inplace=True)
+poss_df = imported_tables[18]
+poss_df = poss_df.droplevel(level=0,axis=1)
+poss_df.columns = 'poss_' + poss_df.columns.values
+poss_df.rename(columns={'poss_Squad':'Squad'}, inplace=True)
+misc_df = imported_tables[22]
+misc_df = misc_df.droplevel(level=0,axis=1)
+misc_df.columns = 'misc_' + misc_df.columns.values
+misc_df.rename(columns={'misc_Squad':'Squad'}, inplace=True)
+
+#Merge DFs
+
+frames = [league_df,gk_df,shot_df,pass_df,pass_type_df,chance_creation_df,def_df,poss_df,misc_df] #list of dfs
+df = reduce(lambda  left,right: pd.merge(left,right,on=['Squad'],
+                                            how='outer',suffixes=("","_DROP")).filter(regex='^(?!.*_DROP)'), frames) #merge dfs, dropping duplicate cols if there are any
+
+
+#Check for complete dataset
+
+if not 'xG' in df.columns:
+    sys.exit("Error: Please select an approved league")
+
+#Importing CSV for approved leagues
+
+if comp_id == '9':
+    imported_csv = pd.read_csv('https://www.football-data.co.uk/mmz4281/2223/E0.csv')
+    
+    #Standardise team names that are stored differently from FBRef
+
+    df.loc[df['Squad'] == 'Manchester City','Squad'] = 'Man City'
+    df.loc[df['Squad'] == 'Newcastle Utd','Squad'] = 'Newcastle'
+    df.loc[df['Squad'] == 'Leeds United','Squad'] = 'Leeds'
+    df.loc[df['Squad'] == "Nott'ham Forest",'Squad'] = "Nott'm Forest"
+    df.loc[df['Squad'] == 'Leicester City','Squad'] = 'Leicester'
+    df.loc[df['Squad'] == 'Manchester Utd','Squad'] = 'Man United'
+    league = 'Premier League'
+    
+elif comp_id == '13':
+    imported_csv = pd.read_csv('https://www.football-data.co.uk/mmz4281/2223/F1.csv')
+    
+    #Standardise team names that are stored differently from FBRef
+
+    df.loc[df['Squad'] == 'Paris S-G','Squad'] = 'Paris SG'
+    df.loc[df['Squad'] == 'Clermont Foot','Squad'] = 'Clermont'
+    league = 'Ligue 1'
+    
+elif comp_id == '20':
+    imported_csv = pd.read_csv('https://www.football-data.co.uk/mmz4281/2223/D1.csv')
+    
+    #Standardise team names that are stored differently from FBRef
+
+    df.loc[df['Squad'] == 'Köln','Squad'] = 'FC Koln'
+    df.loc[df['Squad'] == "M'Gladbach",'Squad'] = "M'gladbach"
+    df.loc[df['Squad'] == 'Mainz 05','Squad'] = 'Mainz'
+    df.loc[df['Squad'] == "Hertha BSC",'Squad'] = "Hertha"
+    df.loc[df['Squad'] == 'Eint Frankfurt','Squad'] = 'Ein Frankfurt'
+    league = 'Bundesliga'
+    
+elif comp_id == '11':
+    imported_csv = pd.read_csv('https://www.football-data.co.uk/mmz4281/2223/I1.csv')
+    
+    #Standardise team names that are stored differently from FBRef
+
+    df.loc[df['Squad'] == 'Hellas Verona','Squad'] = 'Verona'
+    league = 'Serie A'
+    
+elif comp_id == '12':
+    imported_csv = pd.read_csv('https://www.football-data.co.uk/mmz4281/2223/SP1.csv')
+    
+    #Standardise team names that are stored differently from FBRef
+
+    df.loc[df['Squad'] == 'Atlético Madrid','Squad'] = 'Ath Madrid'
+    df.loc[df['Squad'] == 'Real Sociedad','Squad'] = 'Sociedad'
+    df.loc[df['Squad'] == 'Espanyol','Squad'] = 'Espanol'
+    df.loc[df['Squad'] == "Celta Vigo",'Squad'] = "Celta"
+    df.loc[df['Squad'] == 'Athletic Club','Squad'] = 'Ath Bilbao'
+    df.loc[df['Squad'] == 'Rayo Vallecano','Squad'] = 'Vallecano'
+    df.loc[df['Squad'] == 'Almería','Squad'] = 'Almeria'
+    df.loc[df['Squad'] == 'Cádiz','Squad'] = 'Cadiz'
+    league = 'La Liga'
+    
+else:
+    sys.exit("Error: Please select an approved league")
+
+
+#Check seasons match up/no missing data
+
+if (df['MP'].sum() / 2) != len(imported_csv):
+    sys.exit("Error: Season mismatch. Please check both FBRef and Football-Data have the latest season")
+
+if "NaN" in df:
+    df.fillna(0)
+    print("FBRef have not updated the table with advanced stats values")
+    print("Teams without advanced stats values have been set to 0")
+
+#Check for and drop duplicates
+
+imported_csv.drop_duplicates(subset=["Date","Time","HomeTeam","AwayTeam"],keep='last')
+
+#Interpret data from imported CSV and merge with df
+
+df["Avg Win Prob"] = np.nan
+df["Avg Draw Prob"] = np.nan
+df["Avg Lose Prob"] = np.nan #creates new columns with null values
+
+for i in range(len(df)):
+    avg_team_odds = []
+    avg_draw_odds = []
+    avg_lose_odds = [] #Lists to store avg odds
+    current_team = df.loc[i,'Squad']
+    for q in range(len(imported_csv)):
+        if imported_csv.loc[q,'HomeTeam'] == current_team:
+            avg_team_odds.append(imported_csv.loc[q,'AvgH'])
+            avg_lose_odds.append(imported_csv.loc[q,'AvgA'])
+            avg_draw_odds.append(imported_csv.loc[q,'AvgD'])
+        elif imported_csv.loc[q,'AwayTeam'] == current_team:
+            avg_team_odds.append(imported_csv.loc[q,'AvgA'])
+            avg_lose_odds.append(imported_csv.loc[q,'AvgH'])
+            avg_draw_odds.append(imported_csv.loc[q,'AvgD']) #append odds to lists
+    avg_win = 1/np.mean(avg_team_odds)
+    avg_draw = 1/np.mean(avg_draw_odds)
+    avg_lose = 1/np.mean(avg_lose_odds) #work out avg probability (1/odds)
+    df.loc[i,'Avg Win Prob'] = avg_win
+    df.loc[i,'Avg Draw Prob'] = avg_draw
+    df.loc[i,'Avg Lose Prob'] = avg_lose
+
+
+
+SaveFile = input("Write File Name to save or leave blank to skip:")
+
+if SaveFile != "":
+    Path = input("Please paste desired path or leave blank to save in directory:")
+    df.to_csv(Path + SaveFile + '.csv',index=False)
+
+#Analysis
+
+
+#K-Means Clustering
+
+km = input("Would you like to compute a K-Means analysis on this dataset?")
+
+if km == 'Yes' or km == 'yes' or km == 'Y' or km == 'y':
+    run = 1
+else:
+    run = 0
+
+while run == 1:
+    run = 0
+    inputs(df)
+    ans_loop = input("Would you like to compute another K-Means analysis on this dataset?")
+
+    if ans_loop == 'Yes' or ans_loop == 'yes' or ans_loop == 'Y' or ans_loop == 'y':
+        run = 1
+
+
+
+#Other Analysis
+
+print("Producing visual...")
+
+#Declaring team colours for the Premier League
+        
+team_colours = {
+    "Arsenal": '#EF0107',
+    "Aston Villa": '#670E36',
+    "Bournemouth": '#B50E12',
+    "Brentford": '#E30613',
+    'Brighton': '#0057B8',
+    'Chelsea': '#034694',
+    'Crystal Palace': '#1B458F',
+    'Everton': '#003399',
+    'Fulham': '#FFFFFF',
+    'Leeds': '#FFCD00',
+    'Leicester': '#003090',
+    'Liverpool': '#C8102E',
+    'Man City': '#6CABDD',
+    'Man United': '#DA291C',
+    'Newcastle': '#241F20',
+    "Nott'm Forest": '#E53233',
+    'Southampton': '#D71920',
+    'Tottenham': '#132257',
+    'West Ham': '#7A263A',
+    'Wolves': '#FDB913'
+    }
+
+def_colour = 'gray' #Default Colour for teams not listed above (non-PL teams)
+edge_colour = 'black'
+
+
+bg_colour = 'gray'
+face_colour = 'white'
+
+fig, (ax1,ax2) = plt.subplots(1,2)
+viz_height = 6.5
+viz_width = 11
+fig.set_facecolor(bg_colour)
+ax1.set_facecolor(face_colour)
+ax2.set_facecolor(face_colour)
+fig.set_size_inches(viz_width, viz_height)
+viz_title = league + ': Team Performance'
+fig.suptitle(viz_title,fontsize=16)
+
+x_list = []
+y_list = []
+
+for i in range(len(df)):
+    current_team = df.loc[i,'Squad']
+    x = df.loc[i,'xG']
+    y = df.loc[i,'GF']
+    x_list.append(x)
+    y_list.append(y)
+    if current_team in team_colours:
+        col = team_colours[current_team]
+    else:
+        col = def_colour
+    ax1.scatter(x,y,s=300,c=col,marker='o',alpha=0.5,edgecolors=edge_colour,linewidths=1.2)
+
+xlim = max(ax1.get_xlim())
+ylim = max(ax1.get_ylim())
+xmin = min(ax1.get_xlim())
+ymin = min(ax1.get_ylim())
+
+ax1.plot((0,xlim),(0,ylim),linestyle='--',alpha=0.3,color='black')
+
+
+ax1.set_ybound(ymin,ylim)
+ax1.set_xbound(xmin,xlim)
+
+texts_new = []
+
+for x,y,z in zip(x_list,y_list,df['Squad']):
+    texts_new.append(ax1.text(x=x,
+            y=y,
+            s=z,
+            bbox=dict(facecolor='white',
+                      edgecolor=None,
+                      alpha=0.3, pad=1),
+            fontsize=8,
+            ha='center',
+            va='center'))
+
+
+
+
+adjust_text(texts_new, only_move={'points':'y', 'texts':'y'},ax=ax1)
+
+
+
+ax1.set_xlabel("xG")
+ax1.set_ylabel("Goals")
+
+df.sort_values('Avg Win Prob',ascending=False,inplace=True)
+df['Avg Win Prob'].round(2)
+
+cust_palette = sns.color_palette("RdYlGn",len(df))
+sns.barplot(ax=ax2,x='Squad',y='Avg Win Prob',hue='Avg Win Prob',data=df,palette=cust_palette,dodge=False)
+ax2.set_xticklabels(df['Squad'],rotation=70,ha='center')
+ax2.get_legend().remove()
+
+ax2.set_ybound(0,1)
+
+
+plt.subplots_adjust(left=0.05,
+                        bottom=0.22,
+                        right=0.97,
+                        top=0.92,
+                        wspace=0.2,
+                        hspace=0.4)
+
+
+
+
+plt.show()
+
+
+print("Execution complete")
+
+
+
+
+
+
+
+
+
+
+
+
